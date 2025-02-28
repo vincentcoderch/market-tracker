@@ -225,7 +225,7 @@ const App = () => {
               fetchHistoricalData={fetchHistoricalData}
               symbols={CRYPTO_SYMBOLS}
               theme={theme}
-              isCrypto
+              isCrypto={true}
             />
           )}
         </main>
