@@ -49,22 +49,70 @@ Application de suivi en temps réel des indices boursiers et cryptomonnaies avec
 
 ```
 market-tracker/
+├── .github/              # Workflows GitHub Actions
 ├── public/               # Fichiers statiques
+│   └── security-headers.js # Configuration des en-têtes HTTP
 ├── src/                  # Code source
 │   ├── components/       # Composants React
 │   ├── services/         # Services pour les API
 │   ├── utils/            # Utilitaires et helpers
+│   │   ├── formatters.js # Formatage des données
+│   │   ├── security.js   # Fonctions de sécurité
+│   │   └── security.test.js # Tests unitaires de sécurité
 │   ├── App.jsx           # Composant principal
 │   └── index.js          # Point d'entrée
 ├── .env.example          # Exemple de variables d'environnement
+├── .gitignore            # Fichiers exclus du contrôle de version
+├── LICENSE               # Licence MIT
+├── package.json          # Dépendances et scripts
+├── server.js             # Serveur Express pour la production
 └── README.md             # Documentation
 ```
 
 ## Sécurité
 
-- Le fichier `.env` contenant votre clé API est exclus du contrôle de version (via `.gitignore`)
-- Toutes les requêtes API utilisent HTTPS
-- Les données d'entrée utilisateur sont validées avant d'être utilisées dans les requêtes
+L'application implémente plusieurs mesures de sécurité :
+
+- **Gestion sécurisée des API** :
+  - Validation et nettoyage des entrées utilisateur
+  - Protection contre les injections via encodeURIComponent
+  - Limitation du nombre de requêtes (rate limiting)
+
+- **Protection des données sensibles** :
+  - Le fichier `.env` contenant votre clé API est exclus du contrôle de version
+  - Aucune donnée sensible n'est stockée côté client
+
+- **Sécurité des en-têtes HTTP** :
+  - Configuration Content Security Policy (CSP)
+  - En-têtes CORS sécurisés
+  - Protection contre le clickjacking (X-Frame-Options)
+  - Protection XSS et CSRF
+
+- **Tests automatisés** :
+  - Tests unitaires pour les fonctions de sécurité
+  - Analyse de dépendances via GitHub Actions
+  - Vérification des vulnérabilités via npm audit
+
+- **Serveur sécurisé** :
+  - Configuration Express avec Helmet pour la production
+  - HTTPS forcé en production
+
+## Tests et qualité du code
+
+Pour lancer les tests unitaires :
+```bash
+npm test
+```
+
+Pour vérifier les vulnérabilités de sécurité :
+```bash
+npm run security-check
+```
+
+Pour linter le code :
+```bash
+npm run lint
+```
 
 ## Déploiement
 
@@ -74,7 +122,11 @@ Pour construire l'application pour la production :
 npm run build
 ```
 
-Cela génère un dossier `build` avec les fichiers optimisés que vous pouvez déployer sur n'importe quel hébergeur statique (Netlify, Vercel, GitHub Pages, etc.).
+Cela génère un dossier `build` avec les fichiers optimisés. Pour servir l'application en production avec les en-têtes de sécurité :
+
+```bash
+node server.js
+```
 
 ## Contributions
 
@@ -82,4 +134,4 @@ Les contributions sont les bienvenues ! N'hésitez pas à ouvrir une issue ou à
 
 ## Licence
 
-MIT
+[MIT](./LICENSE)
