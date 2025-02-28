@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import Header from './components/Header';
 import MarketList from './components/MarketList';
+import AlertNotification from './components/AlertNotification';
 import apiService, { MARKET_INDICES, CRYPTO_SYMBOLS } from './services/apiService';
+import alertService from './services/alertService';
 import { transformCandleData } from './utils/formatters';
 
 /**
@@ -16,7 +18,23 @@ const App = () => {
   });
   
   const [activeTab, setActiveTab] = useState('indices');
-  const [theme, setTheme] = useState('dark');
+  const [theme, setTheme] = useState(() => {
+    // Récupère le thème depuis localStorage ou utilise 'dark' par défaut
+    return localStorage.getItem('theme') || 'dark';
+  });
+  const [triggeredAlerts, setTriggeredAlerts] = useState([]);
+  
+  // Demande l'autorisation pour les notifications
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission !== 'denied') {
+      Notification.requestPermission();
+    }
+  }, []);
+  
+  // Enregistre le thème dans localStorage
+  useEffect(() => {
+    localStorage.setItem('theme', theme);
+  }, [theme]);
   
   /**
    * Récupère les données de marché au chargement et les met à jour périodiquement
@@ -48,12 +66,17 @@ const App = () => {
           }
         }
         
-        setMarketData({
+        const newMarketData = {
           indices: indicesData,
           crypto: cryptoData,
           loading: false,
           error: null
-        });
+        };
+        
+        setMarketData(newMarketData);
+        
+        // Vérifie les alertes
+        checkAlerts(newMarketData);
       } catch (error) {
         setMarketData(prevData => ({
           ...prevData,
@@ -73,6 +96,34 @@ const App = () => {
     // Nettoyer l'intervalle lorsque le composant est démonté
     return () => clearInterval(intervalId);
   }, []);
+  
+  /**
+   * Vérifie les alertes de prix en fonction des données de marché
+   */
+  const checkAlerts = (marketData) => {
+    // Vérifie les alertes pour les indices
+    const indicesAlerts = alertService.checkAlerts(marketData.indices, MARKET_INDICES);
+    
+    // Vérifie les alertes pour les cryptos
+    const cryptoAlerts = alertService.checkAlerts(marketData.crypto, CRYPTO_SYMBOLS);
+    
+    // Combine les alertes déclenchées
+    const newTriggeredAlerts = [...indicesAlerts, ...cryptoAlerts];
+    
+    // Ajoute les nouvelles alertes déclenchées
+    if (newTriggeredAlerts.length > 0) {
+      setTriggeredAlerts(prevAlerts => [...prevAlerts, ...newTriggeredAlerts]);
+      
+      // Déclenche des notifications pour chaque alerte
+      newTriggeredAlerts.forEach(alert => {
+        const currentPrice = alert.name in marketData.indices 
+          ? marketData.indices[alert.name].c 
+          : marketData.crypto[alert.name].c;
+        
+        alertService.sendNotification(alert, currentPrice);
+      });
+    }
+  };
   
   /**
    * Récupère les données historiques pour un symbole
@@ -123,6 +174,23 @@ const App = () => {
     setTheme(prevTheme => (prevTheme === 'dark' ? 'light' : 'dark'));
   };
   
+  /**
+   * Supprime une alerte déclenchée de la liste
+   */
+  const handleCloseAlert = (alertId) => {
+    setTriggeredAlerts(prevAlerts => 
+      prevAlerts.filter(alert => alert.id !== alertId)
+    );
+  };
+  
+  /**
+   * Réinitialise une alerte pour qu'elle puisse être déclenchée à nouveau
+   */
+  const handleResetAlert = (alertId) => {
+    alertService.resetAlert(alertId);
+    handleCloseAlert(alertId);
+  };
+  
   return (
     <div className={`app ${theme}`}>
       <div className={`app-container ${theme === 'dark' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-900'}`}>
@@ -165,6 +233,25 @@ const App = () => {
         <footer className={`py-4 text-center ${theme === 'dark' ? 'bg-gray-800 text-gray-400' : 'bg-gray-200 text-gray-600'}`}>
           <p>© 2025 MarketTracker - Données fournies par Finnhub</p>
         </footer>
+        
+        {/* Notifications d'alertes */}
+        {triggeredAlerts.map((alert, index) => {
+          const isCrypto = Object.keys(CRYPTO_SYMBOLS).includes(alert.name);
+          const currentPrice = alert.name in marketData.indices 
+            ? marketData.indices[alert.name].c 
+            : marketData.crypto[alert.name].c;
+          
+          return (
+            <AlertNotification
+              key={alert.id}
+              alert={alert}
+              currentPrice={currentPrice}
+              onClose={() => handleCloseAlert(alert.id)}
+              onReset={handleResetAlert}
+              isCrypto={isCrypto}
+            />
+          );
+        })}
       </div>
     </div>
   );
