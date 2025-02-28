@@ -4,9 +4,19 @@
  * et n'est jamais exposée dans le code source
  */
 
+import { 
+  sanitizeStockSymbol, 
+  isValidResolution, 
+  isValidTimestamp,
+  isRequestAllowed
+} from '../utils/security';
+
 // Récupération de la clé API depuis les variables d'environnement
 const API_KEY = process.env.REACT_APP_FINNHUB_API_KEY;
 const BASE_URL = 'https://finnhub.io/api/v1';
+
+// Message d'erreur standard pour les erreurs de validation
+const VALIDATION_ERROR = 'Erreur de validation des paramètres';
 
 /**
  * Service pour accéder aux données boursières via Finnhub
@@ -18,10 +28,30 @@ const apiService = {
    */
   getStockQuote: async (symbol) => {
     try {
-      const response = await fetch(`${BASE_URL}/quote?symbol=${symbol}&token=${API_KEY}`);
+      // Valide et nettoie le symbole
+      const cleanSymbol = sanitizeStockSymbol(symbol);
+      if (!cleanSymbol) {
+        throw new Error(VALIDATION_ERROR);
+      }
+      
+      // Vérifie le rate limiting
+      if (!isRequestAllowed('quotes')) {
+        throw new Error('Trop de requêtes, veuillez réessayer plus tard');
+      }
+      
+      // Utilise encodeURIComponent pour éviter les injections dans l'URL
+      const encodedSymbol = encodeURIComponent(cleanSymbol);
+      
+      const response = await fetch(`${BASE_URL}/quote?symbol=${encodedSymbol}&token=${API_KEY}`, {
+        headers: {
+          'Accept': 'application/json'
+        }
+      });
+      
       if (!response.ok) {
         throw new Error(`Erreur API: ${response.status}`);
       }
+      
       return await response.json();
     } catch (error) {
       console.error('Erreur lors de la récupération des données:', error);
@@ -38,12 +68,35 @@ const apiService = {
    */
   getStockCandles: async (symbol, resolution, from, to) => {
     try {
+      // Validation des paramètres
+      const cleanSymbol = sanitizeStockSymbol(symbol);
+      if (!cleanSymbol || !isValidResolution(resolution) || 
+          !isValidTimestamp(from) || !isValidTimestamp(to)) {
+        throw new Error(VALIDATION_ERROR);
+      }
+      
+      // Vérifie le rate limiting
+      if (!isRequestAllowed('candles')) {
+        throw new Error('Trop de requêtes, veuillez réessayer plus tard');
+      }
+      
+      // Utilise encodeURIComponent pour éviter les injections dans l'URL
+      const encodedSymbol = encodeURIComponent(cleanSymbol);
+      const encodedResolution = encodeURIComponent(resolution);
+      
       const response = await fetch(
-        `${BASE_URL}/stock/candle?symbol=${symbol}&resolution=${resolution}&from=${from}&to=${to}&token=${API_KEY}`
+        `${BASE_URL}/stock/candle?symbol=${encodedSymbol}&resolution=${encodedResolution}&from=${from}&to=${to}&token=${API_KEY}`,
+        {
+          headers: {
+            'Accept': 'application/json'
+          }
+        }
       );
+      
       if (!response.ok) {
         throw new Error(`Erreur API: ${response.status}`);
       }
+      
       return await response.json();
     } catch (error) {
       console.error('Erreur lors de la récupération des données historiques:', error);
@@ -57,12 +110,29 @@ const apiService = {
    */
   getMarketNews: async (category = 'general') => {
     try {
+      // Validation de la catégorie
+      const validCategories = ['general', 'forex', 'crypto', 'merger'];
+      const cleanCategory = category.trim().toLowerCase();
+      
+      if (!validCategories.includes(cleanCategory)) {
+        throw new Error(VALIDATION_ERROR);
+      }
+      
+      const encodedCategory = encodeURIComponent(cleanCategory);
+      
       const response = await fetch(
-        `${BASE_URL}/news?category=${category}&token=${API_KEY}`
+        `${BASE_URL}/news?category=${encodedCategory}&token=${API_KEY}`,
+        {
+          headers: {
+            'Accept': 'application/json'
+          }
+        }
       );
+      
       if (!response.ok) {
         throw new Error(`Erreur API: ${response.status}`);
       }
+      
       return await response.json();
     } catch (error) {
       console.error('Erreur lors de la récupération des actualités:', error);
@@ -76,12 +146,27 @@ const apiService = {
    */
   getIndexComponents: async (index) => {
     try {
+      // Validation du symbole de l'indice
+      const cleanIndex = sanitizeStockSymbol(index);
+      if (!cleanIndex) {
+        throw new Error(VALIDATION_ERROR);
+      }
+      
+      const encodedIndex = encodeURIComponent(cleanIndex);
+      
       const response = await fetch(
-        `${BASE_URL}/index/constituents?symbol=${index}&token=${API_KEY}`
+        `${BASE_URL}/index/constituents?symbol=${encodedIndex}&token=${API_KEY}`,
+        {
+          headers: {
+            'Accept': 'application/json'
+          }
+        }
       );
+      
       if (!response.ok) {
         throw new Error(`Erreur API: ${response.status}`);
       }
+      
       return await response.json();
     } catch (error) {
       console.error('Erreur lors de la récupération des composantes:', error);
